@@ -83,4 +83,4 @@ async function setupAdmin(){
  $('#result').onclick=async()=>{let id=$('#match').value,h=$('#rs1').value,a=$('#rs2').value;if(!id||h===''||a==='')return alert('Choisis un match et saisis le score.');let {error}=await supabase.rpc('record_match_result',{p_match_id:id,p_home_score:+h,p_away_score:+a});if(error)alert(error.message);else{alert('Résultat enregistré, WC attribués et classement actualisé.');render();}};
 }
 shell();
-if(supabase){supabase.auth.onAuthStateChange(async(_e,s)=>{session=s;profile=await getProfile();render()});refresh();}
+if(supabase){supabase.auth.onAuthStateChange((_e,s)=>{session=s;setTimeout(async()=>{profile=await getProfile();render()},0)});refresh();}
