@@ -35,7 +35,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const fmtDate=s=>new Date(s+'T12:00:00').toLocaleDateString('fr-FR');
 function shell(){ $('#app').innerHTML=`
 <header><div class="top"><b>⚽ WALLON CUP <small>TOURNOI INTERCLASSES</small></b><span id="who">Invité</span></div><div class="hero"><small>LE TOURNOI SE JOUE AUSSI DANS LES PRONOS</small><h1>MON PRONO<br>DE LA WALLON CUP</h1><p>Pronostique les matchs, cumule des WC et grimpe au classement.</p></div></header>
-<main><nav>${[['home','Accueil'],['pronostics','Pronostics'],['classement','Classement'],['poules','Les poules'],['admin','Administration']].map(([id,t])=>`<button data-page="${id}">${t}</button>`).join('')}</nav><div id="view"></div></main><footer>Les WC sont des points virtuels sans valeur monétaire : ils ne peuvent être ni achetés, ni vendus, ni misés. C'est pas Winamax ici. Merci au CONSTANTINA pour leur confiance. Ce site a été 100% construit par un gars qui a 4 de moyenne en info btw.</footer>`;
+<main><nav>${[['home','Accueil'],['pronostics','Pronostics'],['classement','Classement'],['poules','Les poules'],['admin','Administration']].map(([id,t])=>`<button data-page="${id}">${t}</button>`).join('')}</nav><div id="view"></div></main><footer>Les WC sont des points virtuels sans valeur monétaire : ils ne peuvent être ni achetés, ni vendus, ni misés.</footer>`;
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{page=b.dataset.page;render()});
 }
 let profileError=null;
@@ -55,7 +55,7 @@ async function render(){
   let wst=await supabase.from('winner_status').select('*');
   let wmine=session?await supabase.from('winner_picks').select('gender,team').eq('user_id',session.user.id):{data:[]};
   let pollResults=await supabase.rpc('get_winner_poll_results');
-  v.innerHTML=`<div class="grid"><section class="card"><small>MON SOLDE (Wallon Cup)</small><strong class="big">${profile?.wc??'—'} WC</strong></section><section class="card"><small>JE SUIS</small><strong class="big">${profile?esc(profile.pseudo):'Invité'}</strong></section><section class="card wide"><h2>⚽ Prochains matchs</h2>${(matches.data||[]).map(m=>matchLine(m)).join('')||'<p class="muted">Les organisateurs ajouteront les matchs ici.</p>'}<button class="primary" id="goP">Voir les pronostics</button></section>${pollCard(wst.data,wmine.data,pollResults.data)}<section class="card"><h2>🏆 En tête</h2>${(board.data||[]).map((x,i)=>`<p>${['🥇','🥈','🥉','4.','5.'][i]} ${esc(x.pseudo)} <b class="right">${x.wc} WC</b></p>`).join('')||'<p>Pas encore de joueurs.</p>'}</section></div>`;
+  v.innerHTML=`<div class="grid"><section class="card"><small>MON SOLDE</small><strong class="big">${profile?.wc??'—'} WC</strong></section><section class="card"><small>MON COMPTE</small><strong class="big">${profile?esc(profile.pseudo):'Invité'}</strong></section><section class="card wide"><h2>⚽ Prochains matchs</h2>${(matches.data||[]).map(m=>matchLine(m)).join('')||'<p class="muted">Les organisateurs ajouteront les matchs ici.</p>'}<button class="primary" id="goP">Voir les pronostics</button></section>${pollCard(wst.data,wmine.data,pollResults.data)}<section class="card"><h2>🏆 En tête</h2>${(board.data||[]).map((x,i)=>`<p>${['🥇','🥈','🥉','4.','5.'][i]} ${esc(x.pseudo)} <b class="right">${x.wc} WC</b></p>`).join('')||'<p>Pas encore de joueurs.</p>'}</section></div>`;
   $('#goP').onclick=()=>{page='pronostics';render()};
   v.querySelectorAll('[data-wpick]').forEach(btn=>btn.onclick=()=>saveWinnerPick(btn.dataset.wpick));
   // Actualise uniquement les résultats toutes les 3 secondes, sans exposer les votes individuels.
@@ -84,7 +84,7 @@ async function render(){
  }
 }
 function pollResultsHTML(g,results){
- const rows=(results||[]).filter(x=>x.gender===g).sort((a,b)=>b.votes-a.votes||a.team.localeCompare(b.team));
+ const rows=(results||[]).filter(x=>x.gender===g && Number(x.votes)>0).sort((a,b)=>b.votes-a.votes||a.team.localeCompare(b.team));
  if(!rows.length)return '<p class="muted">Aucun vote pour le moment.</p>';
  const total=Number(rows[0].total_votes)||0;
  return `<div class="poll-results"><p class="muted">${total} vote${total>1?'s':''} au total · résultats anonymes</p>${rows.map(r=>{
