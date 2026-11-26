@@ -110,7 +110,7 @@ function pollCard(st,mine,results){
   else body=`<div class="poll"><select id="wp-${g}"><option value="">Choisis une équipe</option>${teams[g].map(t=>`<option${t===pick?' selected':''}>${esc(t)}</option>`).join('')}</select><button class="primary small" data-wpick="${g}">${pick?'Modifier':'Valider'}</button></div>`;
   return `<h3>${label}</h3>${body}<div id="poll-results-${g}">${pollResultsHTML(g,results)}</div>`;
  }).join('');
- return `<section class="card wide"><h2>🏅 Qui va gagner le tournoi ?</h2><div class="notice"><b>Sondage :</b> trouve le vainqueur du tournoi masculin et du tournoi féminin. Bon prono : +150 WC pour chaque compétition. Tu peux changer d'avis tant que le sondage est ouvert. Les résultats affichent uniquement les tendances globales, jamais les votes individuels.</div>${rows}</section>`;
+ return `<section class="card wide"><h2>🏅 Qui va gagner le tournoi ?</h2><div class="notice"><b>Sondage :</b> trouve le vainqueur du tournoi masculin et du tournoi féminin. Bon prono : +150 WC pour chaque compétition. Tu as jusqu'a la veille du premier quart de final pour te décider après cela le sondage sera fermé. Que la meilleur équipe gagne!</div>${rows}</section>`;
 }
 async function saveWinnerPick(g){
  if(!session)return alert('Connecte-toi pour participer au sondage narvalo.');
