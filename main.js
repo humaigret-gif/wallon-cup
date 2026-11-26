@@ -55,7 +55,7 @@ async function render(){
   let wst=await supabase.from('winner_status').select('*');
   let wmine=session?await supabase.from('winner_picks').select('gender,team').eq('user_id',session.user.id):{data:[]};
   let pollResults=await supabase.rpc('get_winner_poll_results');
-  v.innerHTML=`<div class="grid"><section class="card"><small>MON SOLDE (Wallon Cup)</small><strong class="big">${profile?.wc??'—'} WC</strong></section><section class="card"><small>JE SUIS</small><strong class="big">${profile?esc(profile.pseudo):'Invité'}</strong></section><section class="card wide"><h2>⚽ Prochains matchs</h2>${(matches.data||[]).map(m=>matchLine(m)).join('')||'<p class="muted">Les organisateurs ajouteront les matchs ici.</p>'}<button class="primary" id="goP">Voir les pronostics</button></section>${pollCard(wst.data,wmine.data,pollResults.data)}<section class="card"><h2>🏆 En tête</h2>${(board.data||[]).map((x,i)=>`<p>${['🥇','🥈','🥉','4.','5.'][i]} ${esc(x.pseudo)} <b class="right">${x.wc} WC</b></p>`).join('')||'<p>Pas encore de joueurs.</p>'}</section></div>`;
+  v.innerHTML=`<div class="grid"><section class="card"><small>MON SOLDE (Wallon Cup)</small><strong class="big">${profile?.wc??'—'} WC</strong></section><section class="card"><small>JE SUIS</small><strong class="big">${profile?esc(profile.pseudo):'Invité'}</strong></section><section class="card wide"><h2>⚽ Résultats et prochains matchs</h2>${(matches.data||[]).map(m=>matchLine(m)).join('')||'<p class="muted">Les organisateurs ajouteront les matchs ici.</p>'}<button class="primary" id="goP">Voir les pronostics</button></section>${pollCard(wst.data,wmine.data,pollResults.data)}<section class="card"><h2>🏆 En tête</h2>${(board.data||[]).map((x,i)=>`<p>${['🥇','🥈','🥉','4.','5.'][i]} ${esc(x.pseudo)} <b class="right">${x.wc} WC</b></p>`).join('')||'<p>Pas encore de joueurs.</p>'}</section></div>`;
   $('#goP').onclick=()=>{page='pronostics';render()};
   v.querySelectorAll('[data-wpick]').forEach(btn=>btn.onclick=()=>saveWinnerPick(btn.dataset.wpick));
   // Actualise uniquement les résultats toutes les 3 secondes, sans exposer les votes individuels.
@@ -115,7 +115,7 @@ function pollCard(st,mine,results){
 async function saveWinnerPick(g){
  if(!session)return alert('Connecte-toi pour participer au sondage narvalo.');
  const team=$('#wp-'+g).value;
- if(!team)return alert('Choisis une équipe.');
+ if(!team)return alert('Choisis ton équipe ou celle que tu supportes.');
  const {error}=await supabase.from('winner_picks').upsert({user_id:session.user.id,gender:g,team},{onConflict:'user_id,gender'});
  if(error)alert(error.code==='42501'?'Le sondage est fermé.':error.message);else alert('Ton prono est enregistré !');
  render();
