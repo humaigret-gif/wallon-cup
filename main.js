@@ -29,19 +29,20 @@ const seed = [
  ['F','Poule A','PSI F',1,1,0,0,5,0,5,3],['F','Poule A','PCSI 2 F',1,1,0,0,3,0,3,3],['F','Poule A','PC F',2,1,0,1,3,3,0,3],['F','Poule A','MPSI F',2,0,0,2,0,8,-8,0],
  ['F','Poule B','PCE F',1,1,0,0,4,1,3,3],['F','Poule B','MPE MPSI-2I F',0,0,0,0,0,0,0,0],['F','Poule B','PCSI 1 F',1,0,0,1,1,4,-3,0]
 ];
-let session=null, profile=null, page='home', gender='M';
+let session=null, profile=null, page='home', gender='M', pollRefreshTimer=null;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmtDate=s=>new Date(s+'T12:00:00').toLocaleDateString('fr-FR');
 function shell(){ $('#app').innerHTML=`
-<header><div class="top"><b>⚽ WALLON CUP <small>TOURNOI INTERCLASSES</small></b><span id="who">Invité</span></div><div class="hero"><small>LE TOURNOI SE JOUE AUSSI DANS LES PRONOS</small><h1>MON PRONO<br>DE LA WALLON CUP</h1><p>Pronostique les matchs, cumule des WC (Wallon Cup) et grimpe au classement et deviens un tigre.</p></div></header>
-<main><nav>${[['home','Accueil'],['pronostics','Pronostics'],['classement','Classement'],['poules','Les poules'],['admin','Administration-Le coin des baddies']].map(([id,t])=>`<button data-page="${id}">${t}</button>`).join('')}</nav><div id="view"></div></main><footer>Les WC sont des points virtuels sans valeur monétaire : ils ne peuvent être ni achetés, ni vendus, ni misés ici c'est pas winamax pélo. Le site sera régulierement mis a jour normalement ;). Merci au CONSTANTINA pour leur confiance. </footer>`;
+<header><div class="top"><b>⚽ WALLON CUP <small>TOURNOI INTERCLASSES</small></b><span id="who">Invité</span></div><div class="hero"><small>LE TOURNOI SE JOUE AUSSI DANS LES PRONOS</small><h1>MON PRONO<br>DE LA WALLON CUP</h1><p>Pronostique les matchs, cumule des WC et grimpe au classement.</p></div></header>
+<main><nav>${[['home','Accueil'],['pronostics','Pronostics'],['classement','Classement'],['poules','Les poules'],['admin','Administration']].map(([id,t])=>`<button data-page="${id}">${t}</button>`).join('')}</nav><div id="view"></div></main><footer>Les WC sont des points virtuels sans valeur monétaire : ils ne peuvent être ni achetés, ni vendus, ni misés.</footer>`;
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{page=b.dataset.page;render()});
 }
 let profileError=null;
 async function getProfile(){if(!session)return null;const {data,error}=await supabase.from('profiles').select('*').eq('id',session.user.id).maybeSingle();profileError=error?(error.message+' ['+(error.code||'?')+']'):null;return data;}
 async function refresh(){if(!supabase){shell();$('#view').innerHTML=`<section class="card"><h2>Configuration nécessaire</h2><p>Le site est prêt à être relié à sa base de données. Ajoute les clés Supabase dans le fichier <code>.env</code> en suivant le guide fourni.</p></section>`;return;}const {data:{session:s}}=await supabase.auth.getSession();session=s;profile=await getProfile();render();}
 async function render(){
+ if(pollRefreshTimer){clearInterval(pollRefreshTimer);pollRefreshTimer=null;}
  if(!$('#app').innerHTML)shell();
  $('#who').innerHTML=session?`${esc(profile?.pseudo||session.user.email)} <button class="link" id="logout">Déconnexion</button>`:`<button class="link" id="login">Connexion / inscription</button>`;
  $('#logout')?.addEventListener('click',async()=>{await supabase.auth.signOut();session=null;profile=null;render()});
@@ -53,12 +54,18 @@ async function render(){
   let board=await supabase.from('profiles').select('pseudo,wc').order('wc',{ascending:false}).limit(5);
   let wst=await supabase.from('winner_status').select('*');
   let wmine=session?await supabase.from('winner_picks').select('gender,team').eq('user_id',session.user.id):{data:[]};
-  v.innerHTML=`<div class="grid"><section class="card"><small>MES WALLON CUP</small><strong class="big">${profile?.wc??'—'} WC</strong></section><section class="card"><small>JE SUIS: </small><strong class="big">${profile?esc(profile.pseudo):'Invité'}</strong></section><section class="card wide"><h2>⚽ Prochains matchs</h2>${(matches.data||[]).map(m=>matchLine(m)).join('')||'<p class="muted">L'organisateur ajoutera les matchs ici.</p>'}<button class="primary" id="goP">Voir les pronostics</button></section>${pollCard(wst.data,wmine.data)}<section class="card"><h2>🏆 En tête</h2>${(board.data||[]).map((x,i)=>`<p>${['🥇','🥈','🥉','4.','5.'][i]} ${esc(x.pseudo)} <b class="right">${x.wc} WC</b></p>`).join('')||'<p>Pas encore de joueurs.</p>'}</section></div>`;
+  let pollResults=await supabase.rpc('get_winner_poll_results');
+  v.innerHTML=`<div class="grid"><section class="card"><small>MON SOLDE</small><strong class="big">${profile?.wc??'—'} WC</strong></section><section class="card"><small>MON COMPTE</small><strong class="big">${profile?esc(profile.pseudo):'Invité'}</strong></section><section class="card wide"><h2>⚽ Prochains matchs</h2>${(matches.data||[]).map(m=>matchLine(m)).join('')||'<p class="muted">Les organisateurs ajouteront les matchs ici.</p>'}<button class="primary" id="goP">Voir les pronostics</button></section>${pollCard(wst.data,wmine.data,pollResults.data)}<section class="card"><h2>🏆 En tête</h2>${(board.data||[]).map((x,i)=>`<p>${['🥇','🥈','🥉','4.','5.'][i]} ${esc(x.pseudo)} <b class="right">${x.wc} WC</b></p>`).join('')||'<p>Pas encore de joueurs.</p>'}</section></div>`;
   $('#goP').onclick=()=>{page='pronostics';render()};
   v.querySelectorAll('[data-wpick]').forEach(btn=>btn.onclick=()=>saveWinnerPick(btn.dataset.wpick));
+  // Actualise uniquement les résultats toutes les 3 secondes, sans exposer les votes individuels.
+  pollRefreshTimer=setInterval(async()=>{
+   const {data,error}=await supabase.rpc('get_winner_poll_results');
+   if(!error)updatePollResults(data||[]);
+  },3000);
  } else if(page==='pronostics'){
   let {data=[]}=await supabase.from('matches').select('*').is('home_score',null).order('match_date').order('match_time');
-  v.innerHTML=`<section class="card"><h2>Mes pronostics</h2><div class="notice"><b>Barème :</b> score exact +50 WC ; bon écart de buts +20 WC ; bon résultat +10 WC. Aucun WC n'est misé.</div>${data.map(m=>`<div class="match"><div><b>${esc(m.home_team)} – ${esc(m.away_team)}</b><small>${fmtDate(m.match_date)} · ${m.match_time}</small></div><div class="scores"><input type="number" min="0" id="h${m.id}" placeholder="–"><b>:</b><input type="number" min="0" id="a${m.id}" placeholder="–"><button class="primary small" data-pick="${m.id}">Valider</button></div></div>`).join('')||'<p class="muted">Aucun match ouvert aux pronostics.</p>'}</section>`;
+  v.innerHTML=`<section class="card"><h2>Mes pronostics</h2><div class="notice"><b>Barème :</b> score exact +50 WC ; bon écart de buts +20 WC ; bon résultat +10 WC. Les récompenses ne se cumulent pas. Aucun WC n'est misé.</div>${data.map(m=>`<div class="match"><div><b>${esc(m.home_team)} – ${esc(m.away_team)}</b><small>${fmtDate(m.match_date)} · ${m.match_time}</small></div><div class="scores"><input type="number" min="0" id="h${m.id}" placeholder="–"><b>:</b><input type="number" min="0" id="a${m.id}" placeholder="–"><button class="primary small" data-pick="${m.id}">Valider</button></div></div>`).join('')||'<p class="muted">Aucun match ouvert aux pronostics.</p>'}</section>`;
   v.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>savePick(b.dataset.pick));
  } else if(page==='classement'){
   let {data=[]}=await supabase.from('profiles').select('pseudo,team,wc').order('wc',{ascending:false});
@@ -69,14 +76,29 @@ async function render(){
   const {data=[]}=await supabase.from('standings').select('*').eq('gender',gender).order('pool').order('points',{ascending:false}).order('goal_difference',{ascending:false});
   $('#poule-content').innerHTML=pools[gender].map(p=>`<h3>${p.name}</h3><div class="scroll"><table><tr><th>Équipe</th><th>J</th><th>G</th><th>N</th><th>P</th><th>BP</th><th>BC</th><th>DB</th><th>Pts</th></tr>${(data.filter(x=>x.pool===p.name)).map(x=>`<tr><td>${esc(x.team)}</td><td>${x.played}</td><td>${x.won}</td><td>${x.drawn}</td><td>${x.lost}</td><td>${x.goals_for}</td><td>${x.goals_against}</td><td>${x.goal_difference}</td><td><b>${x.points}</b></td></tr>`).join('')}</table></div>`).join('');
  } else if(page==='admin'){
-  if(!profile?.is_admin){v.innerHTML=`<section class="card"><h2>Administration réservée</h2><p>${!session?'Connecte-toi avec un compte administrateur.':!profile?'Ton compte est connecté mais le profil n\'a pas pu être lu. Détail technique : '+esc(profileError||('aucune ligne pour l\'id '+session.user.id))+'.':'Ce compte n\'est pas administrateur. Deviens le bestie du super-administrateur pour l'etre.'}</p></section>`;return;}
+  if(!profile?.is_admin){v.innerHTML=`<section class="card"><h2>Administration réservée</h2><p>${!session?'Connecte-toi avec un compte administrateur.':!profile?'Ton compte est connecté mais le profil n\'a pas pu être lu. Détail technique : '+esc(profileError||('aucune ligne pour l\'id '+session.user.id))+'.':'Ce compte n\'est pas administrateur. Le super-administrateur doit activer is_admin sur ton profil dans Supabase.'}</p></section>`;return;}
   const {data:ms=[]}=await supabase.from('matches').select('*').order('match_date');
   const {data:wst=[]}=await supabase.from('winner_status').select('*');
   v.innerHTML=`<div class="grid"><section class="card"><h2>Ajouter un match</h2><label>Compétition</label><select id="g"><option value="M">Masculin</option><option value="F">Féminin</option></select><label>Poule</label><select id="pool"></select><label>Équipe 1</label><select id="home"></select><label>Équipe 2</label><select id="away"></select><label>Date</label><input type="date" id="date"><label>Heure</label><select id="time"><option>18:15</option><option>18:50</option></select><button class="primary" id="add">Ajouter le match</button></section><section class="card"><h2>Saisir un résultat</h2><select id="match">${ms.filter(m=>m.home_score===null).map(m=>`<option value="${m.id}">${esc(m.home_team)} – ${esc(m.away_team)} (${m.match_date})</option>`).join('')}</select><div class="scores"><input type="number" id="rs1" placeholder="Score 1"><b>:</b><input type="number" id="rs2" placeholder="Score 2"></div><button class="primary" id="result">Enregistrer le score</button></section></div>${adminWinnerCard(wst)}<section class="card"><h2>Matchs programmés</h2>${ms.map(matchLine).join('')||'Aucun match ajouté.'}</section>`;
   setupAdmin();
  }
 }
-function pollCard(st,mine){
+function pollResultsHTML(g,results){
+ const rows=(results||[]).filter(x=>x.gender===g).sort((a,b)=>b.votes-a.votes||a.team.localeCompare(b.team));
+ if(!rows.length)return '<p class="muted">Aucun vote pour le moment.</p>';
+ const total=Number(rows[0].total_votes)||0;
+ return `<div class="poll-results"><p class="muted">${total} vote${total>1?'s':''} au total · résultats anonymes</p>${rows.map(r=>{
+  const pct=Number(r.percentage)||0;
+  return `<div class="poll-result"><div class="poll-result-head"><b>${esc(r.team)}</b><strong>${pct}%</strong></div><div class="poll-result-track"><span style="width:${pct}%"></span></div></div>`;
+ }).join('')}</div>`;
+}
+function updatePollResults(results){
+ ['M','F'].forEach(g=>{
+  const el=$('#poll-results-'+g);
+  if(el)el.innerHTML=pollResultsHTML(g,results);
+ });
+}
+function pollCard(st,mine,results){
  const rows=['M','F'].map(g=>{
   const label=g==='M'?'Masculin':'Féminin';
   const s=(st||[]).find(x=>x.gender===g);
@@ -86,9 +108,9 @@ function pollCard(st,mine){
   else if(s.winner)body=`<p>Vainqueur : <b>${esc(s.winner)}</b>${pick?(pick===s.winner?' · 🎉 Ton prono était bon : +150 WC !':` · Ton choix : ${esc(pick)}`):''}</p>`;
   else if(!s.poll_open)body=`<p class="muted">Sondage fermé.${pick?` Ton choix : <b>${esc(pick)}</b>`:''}</p>`;
   else body=`<div class="poll"><select id="wp-${g}"><option value="">Choisis une équipe</option>${teams[g].map(t=>`<option${t===pick?' selected':''}>${esc(t)}</option>`).join('')}</select><button class="primary small" data-wpick="${g}">${pick?'Modifier':'Valider'}</button></div>`;
-  return `<h3>${label}</h3>${body}`;
+  return `<h3>${label}</h3>${body}<div id="poll-results-${g}">${pollResultsHTML(g,results)}</div>`;
  }).join('');
- return `<section class="card wide"><h2>🏅 Qui va gagner le tournoi ?</h2><div class="notice"><b>Sondage :</b> trouve le vainqueur du tournoi masculin et du tournoi féminin. Bon prono : +150 WC pour chaque compétition. Tu peux changer d'avis tant que le sondage est ouvert.</div>${rows}</section>`;
+ return `<section class="card wide"><h2>🏅 Qui va gagner le tournoi ?</h2><div class="notice"><b>Sondage :</b> trouve le vainqueur du tournoi masculin et du tournoi féminin. Bon prono : +150 WC pour chaque compétition. Tu peux changer d'avis tant que le sondage est ouvert. Les résultats affichent uniquement les tendances globales, jamais les votes individuels.</div>${rows}</section>`;
 }
 async function saveWinnerPick(g){
  if(!session)return alert('Connecte-toi pour participer au sondage.');
