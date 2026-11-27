@@ -35,7 +35,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const fmtDate=s=>new Date(s+'T12:00:00').toLocaleDateString('fr-FR');
 function shell(){ $('#app').innerHTML=`
 <header><div class="top"><b>⚽ WALLON CUP <small>TOURNOI INTERCLASSES</small></b><span id="who">Invité</span></div><div class="hero"><small>LE TOURNOI SE JOUE AUSSI DANS LES PRONOS</small><h1>MON PRONO<br>DE LA WALLON CUP</h1><p>Pronostique les matchs, cumule des WC et grimpe au classement.</h1><p>An original idea from Les Pains De La Prépa.</p></div></header>
-<main><nav>${[['home','Accueil'],['pronostics','Pronostics'],['classement','Classement'],['poules','Les poules'],['admin','Administration']].map(([id,t])=>`<button data-page="${id}">${t}</button>`).join('')}</nav><div id="view"></div></main><footer>Les WC sont des points virtuels sans valeur monétaire : ils ne peuvent être ni achetés, ni vendus, ni misés.C'est pas Winamax ici. Merci au CONSTANTINA pour leur confiance. Ce site a été 100% crée par un gars qui a 4 de moyennes en info btw.</footer>`;
+<main><nav>${[['home','Accueil'],['pronostics','Pronostics'],['classement','Classement'],['poules','Les poules'],['admin','Administration']].map(([id,t])=>`<button data-page="${id}">${t}</button>`).join('')}</nav><div id="view"></div></main><footer>Les WC sont des points virtuels sans valeur monétaire : ils ne peuvent être ni achetés, ni vendus, ni misés.C'est pas Winamax ici. Merci au CONSTANTINA pour leur confiance. Ce site a été 100% crée par un gars qui a 4 de moyenne en info btw.</footer>`;
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{page=b.dataset.page;render()});
 }
 let profileError=null;
