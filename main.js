@@ -29,13 +29,13 @@ const seed = [
  ['F','Poule A','PSI F',1,1,0,0,5,0,5,3],['F','Poule A','PCSI 2 F',1,1,0,0,3,0,3,3],['F','Poule A','PC F',2,1,0,1,3,3,0,3],['F','Poule A','MPSI F',2,0,0,2,0,8,-8,0],
  ['F','Poule B','PCE F',1,1,0,0,4,1,3,3],['F','Poule B','MPE MPSI-2I F',0,0,0,0,0,0,0,0],['F','Poule B','PCSI 1 F',1,0,0,1,1,4,-3,0]
 ];
-let session=null, profile=null, page='home', gender='M', pollRefreshTimer=null;
+let session=null, profile=null, page='home', gender='M', pollRefreshTimer=null, eggFor=null;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmtDate=s=>new Date(s+'T12:00:00').toLocaleDateString('fr-FR');
 function shell(){ $('#app').innerHTML=`
-<header><div class="top"><b>⚽ WALLON CUP <small>TOURNOI INTERCLASSES</small></b><span id="who">Invité</span></div><div class="hero"><small>LE TOURNOI SE JOUE AUSSI DANS LES PRONOS</small><h1>MON PRONO<br>DE LA WALLON CUP</h1><p>Pronostique les matchs, cumule des WC et grimpe au classement.</h1><p>An original idea from Les Pains De La Prépa.</p></div></header>
-<main><nav>${[['home','Accueil'],['pronostics','Pronostics'],['classement','Classement'],['poules','Les poules'],['admin','Administration']].map(([id,t])=>`<button data-page="${id}">${t}</button>`).join('')}</nav><div id="view"></div></main><footer>Les WC sont des points virtuels sans valeur monétaire : ils ne peuvent être ni achetés, ni vendus, ni misés.C'est pas Winamax ici. Merci au CONSTANTINA pour leur confiance. Ce site a été 100% crée par un gars qui a 4 de moyenne en info btw.</footer>`;
+<header><div class="top"><b>⚽ WALLON CUP <small>TOURNOI INTERCLASSES</small></b><span id="who">Invité</span></div><div class="hero"><small>LE TOURNOI SE JOUE AUSSI DANS LES PRONOS</small><h1>MON PRONO<br>DE LA WALLON CUP</h1><p>Pronostique les matchs, cumule des WC et grimpe au classement.</p><p>An original idea from Les Pains De La Prépa.</p></div></header>
+<main><nav>${[['home','Accueil'],['pronostics','Pronostics'],['classement','Classement'],['poules','Les poules'],['admin','Administration']].map(([id,t])=>`<button data-page="${id}">${t}</button>`).join('')}</nav><div id="view"></div></main><footer>Les WC sont des points virtuels sans valeur monétaire : ils ne peuvent être ni achetés, ni vendus, ni misés.C'est pas Winamax ici. Merci au CONSTANTINA pour leur confiance. Ce site a été 100% crée par un gars qui a 4 de moyennes en info btw.</footer>`;
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{page=b.dataset.page;render()});
 }
 let profileError=null;
@@ -57,6 +57,7 @@ async function render(){
   let pollResults=await supabase.rpc('get_winner_poll_results');
   v.innerHTML=`<div class="grid"><section class="card"><small>MON SOLDE (Wallon Cup)</small><strong class="big">${profile?.wc??'—'} WC</strong></section><section class="card"><small>JE SUIS</small><strong class="big">${profile?esc(profile.pseudo):'Invité'}</strong></section><section class="card wide"><h2>⚽ Résultats et prochains matchs</h2>${(matches.data||[]).map(m=>matchLine(m)).join('')||'<p class="muted">Les organisateurs ajouteront les matchs ici.</p>'}<button class="primary" id="goP">Voir les pronostics</button></section>${pollCard(wst.data,wmine.data,pollResults.data)}<section class="card"><h2>🏆 En tête</h2>${(board.data||[]).map((x,i)=>`<p>${['🥇','🥈','🥉','4.','5.'][i]} ${esc(x.pseudo)} <b class="right">${x.wc} WC</b></p>`).join('')||'<p>Pas encore de joueurs.</p>'}</section></div>`;
   $('#goP').onclick=()=>{page='pronostics';render()};
+  if(session&&eggFor!==session.user.id){eggFor=session.user.id;checkEasterEgg();}
   v.querySelectorAll('[data-wpick]').forEach(btn=>btn.onclick=()=>saveWinnerPick(btn.dataset.wpick));
   // Actualise uniquement les résultats toutes les 3 secondes, sans exposer les votes individuels.
   pollRefreshTimer=setInterval(async()=>{
@@ -82,6 +83,19 @@ async function render(){
   v.innerHTML=`<div class="grid"><section class="card"><h2>Ajouter un match</h2><label>Compétition</label><select id="g"><option value="M">Masculin</option><option value="F">Féminin</option></select><label>Poule</label><select id="pool"></select><label>Équipe 1</label><select id="home"></select><label>Équipe 2</label><select id="away"></select><label>Date</label><input type="date" id="date"><label>Heure</label><select id="time"><option>18:15</option><option>18:50</option></select><button class="primary" id="add">Ajouter le match</button></section><section class="card"><h2>Saisir un résultat</h2><select id="match">${ms.filter(m=>m.home_score===null).map(m=>`<option value="${m.id}">${esc(m.home_team)} – ${esc(m.away_team)} (${m.match_date})</option>`).join('')}</select><div class="scores"><input type="number" id="rs1" placeholder="Score 1"><b>:</b><input type="number" id="rs2" placeholder="Score 2"></div><button class="primary" id="result">Enregistrer le score</button></section></div>${adminWinnerCard(wst)}<section class="card"><h2>Matchs programmés</h2>${ms.map(matchLine).join('')||'Aucun match ajouté.'}</section>`;
   setupAdmin();
  }
+}
+async function checkEasterEgg(){
+ const {data=[],error}=await supabase.from('predictions').select('id,home_score,away_score,matches(home_team,away_team,home_score,away_score)').eq('user_id',session.user.id);
+ if(error)return;
+ let seen=[];try{seen=JSON.parse(localStorage.getItem('wc_egg_seen')||'[]')}catch(e){}
+ const hits=data.filter(p=>p.matches&&p.matches.home_score!==null&&p.matches.home_score===p.home_score&&p.matches.away_score===p.away_score&&!seen.includes(p.id));
+ if(!hits.length)return;
+ const m=hits[0].matches;
+ const box=document.createElement('div');box.className='egg';
+ box.innerHTML=`<div class="egg-card"><img src="/easter-egg.jpeg" alt="" onerror="this.style.display='none'"><h2>🎯 SCORE EXACT !</h2><p>Tu avais vu juste : <b>${esc(m.home_team)} ${m.home_score} – ${m.away_score} ${esc(m.away_team)}</b></p><p class="muted">+100 WC pour toi</p><button class="primary">Trop fort</button></div>`;
+ box.onclick=e=>{if(e.target===box||e.target.tagName==='BUTTON')box.remove()};
+ document.body.appendChild(box);
+ try{localStorage.setItem('wc_egg_seen',JSON.stringify([...seen,...hits.map(x=>x.id)]))}catch(e){}
 }
 function pollResultsHTML(g,results){
  const rows=(results||[]).filter(x=>x.gender===g && Number(x.votes)>0).sort((a,b)=>b.votes-a.votes||a.team.localeCompare(b.team));
